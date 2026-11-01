@@ -426,7 +426,7 @@ function drawBus(fb: FB, w: World, e: Ent, x: number, y: number, tick: number) {
     if (phase >= 1) blit(fb, PEOPLE.defender.walk2, wx, y + 3);
     else px(fb, wx + 2, y + 7, WH);
   }
-  text(fb, "DOUGIE'S COACHES", PLAY_X + ox + x + 2, PLAY_Y + oy + y + 18, WH, K);
+  text(fb, "DOUGIE'S BUS", PLAY_X + ox + x + 12, PLAY_Y + oy + y + 18, WH, K);
   if (b && phase === 0) for (let i = 0; i < 3 - (b.hp ?? 0); i++) rect(fb, x + 10 + i * 26, y + 26, 5, 3, BRND);
   // Wheels
   for (const wx of [x + 14, x + e.w - 20]) {

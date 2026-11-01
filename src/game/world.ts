@@ -290,7 +290,6 @@ function stepPlayer(w: World) {
     if (firePressed || (fireHeld && pressed & (IN_U | IN_D | IN_L | IN_R))) {
       if (U) kick = true; else if (D) pie = true; else scarf = true;
     }
-    if (fireHeld) { if (U || D) return; }
   }
 
   if (kick && !p.crouched) {
@@ -302,6 +301,7 @@ function stepPlayer(w: World) {
     sfx(w, 'empty');
   }
   if (scarf) { p.st = 'scarf'; p.t = 0; sfx(w, 'scarf'); return; }
+  if (w.classic && inp & IN_J && (U || D)) return; // holding fire: the stick picks a tool, it doesn't walk
 
   if (jump && (!p.crouched || headroom(w, T.hitH))) {
     p.crouched = false;

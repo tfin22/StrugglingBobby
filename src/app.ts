@@ -67,6 +67,7 @@ export class App {
 
   go(s: Scene) {
     this.scene = s;
+    this.input.counts = null;
     this.display.setZone(s.zone, s.sky);
     audio.music(this.settings.music ? s.music : null);
     s.enter?.(this);

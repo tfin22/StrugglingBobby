@@ -43,10 +43,10 @@ export class LoadingScene implements Scene {
 
 // ---------------------------------------------------------------- Title + attract
 export class TitleScene implements Scene {
-  zone = 3; sky = false; music = 'title'; touchControls = true;
+  zone = 3; sky = true; music = 'title'; touchControls = true;
   phase = 0; t = 0;
   demo: World | null = null; demoIn: number[] = []; demoI = 0; demoZone = 0;
-  enter(app: App) { app.display.setZone(3, false); this.phase = 0; this.t = 0; }
+  enter(app: App) { app.display.setZone(3, true); this.phase = 0; this.t = 0; }
   constructor(public app: App) {}
   update(app: App) {
     this.t++;
@@ -55,7 +55,7 @@ export class TitleScene implements Scene {
     app.display.setColour(31, cyc[Math.floor(app.tick / 6) % cyc.length]);
     if (anyKey(app) || app.input.pressed('pause')) {
       app.fullscreen(); audio.init();
-      if (this.demo) app.display.setZone(3, false);
+      if (this.demo) app.display.setZone(3, true);
       app.go(new MenuScene(app));
       return;
     }
@@ -87,7 +87,7 @@ export class TitleScene implements Scene {
   }
   nextPhase(app: App) {
     this.phase = (this.phase + 1) % 4; this.t = 0;
-    if (this.demo) { this.demo = null; app.display.setZone(3, false); }
+    if (this.demo) { this.demo = null; app.display.setZone(3, true); }
   }
   draw(app: App, fb: FB) {
     if (this.phase === 2 && this.demo) {
@@ -140,7 +140,7 @@ function drawWhosWho(fb: FB, tick: number) {
 
 // ---------------------------------------------------------------- Main menu
 export class MenuScene implements Scene {
-  zone = 3; sky = false; music = 'title'; touchControls = true;
+  zone = 3; sky = true; music = 'title'; touchControls = true;
   menu: Menu;
   constructor(public app: App) {
     const start = (mode: '2026' | '1989') => {

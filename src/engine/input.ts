@@ -14,6 +14,7 @@ export class Input {
   bits = 0;            // held this frame
   prev = 0;
   keyBits = 0;
+  latch = 0;           // presses shorter than a frame still count once
   touchBits = 0;
   padBits = 0;
   menuPressed = new Set<string>(); // 'up','down','left','right','ok','back','pause','debug'
@@ -28,14 +29,14 @@ export class Input {
   padWasPressed: boolean[] = [];
   threeFinger = false;
   classicLabels = false;
-  counts = { balls: 0, pies: 0 };
+  counts: { balls: number; pies: number } | null = null;
   private touches = new Map<number, { x: number; y: number }>();
 
   constructor(layer: HTMLElement) {
     this.layer = layer;
     addEventListener('keydown', (e) => {
       if (e.repeat) { if (KEYS[e.code]) e.preventDefault(); return; }
-      if (KEYS[e.code] !== undefined && !(e.code === 'KeyD' && e.shiftKey)) { this.keyBits |= KEYS[e.code]; e.preventDefault(); }
+      if (KEYS[e.code] !== undefined && !(e.code === 'KeyD' && e.shiftKey)) { this.keyBits |= KEYS[e.code]; this.latch |= KEYS[e.code]; e.preventDefault(); }
       if ((e.code === 'KeyD' && e.shiftKey) || e.code === 'Backquote') this.menuPressed.add('debug');
       const m: Record<string, string> = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', Enter: 'ok', Space: 'ok', Escape: 'back', KeyP: 'pause', Backspace: 'back' };
       if (m[e.code]) this.menuPressed.add(m[e.code]);
@@ -115,8 +116,8 @@ export class Input {
     if (this.classicLabels) { lab('jump', 'FIRE'); lab('kick', '-'); lab('pie', '-'); lab('scarf', '-'); }
     else {
       lab('jump', 'JUMP');
-      lab('kick', `KICK\n${this.counts.balls}`);
-      lab('pie', `PIE\n${this.counts.pies}`);
+      lab('kick', this.counts ? `KICK\n${this.counts.balls}` : 'KICK');
+      lab('pie', this.counts ? `PIE\n${this.counts.pies}` : 'PIE');
       lab('scarf', 'SCARF');
     }
   }
@@ -168,6 +169,7 @@ export class Input {
       else if (id === 'scarf') bits |= IN_S;
     }
     const newly = bits & ~this.touchBits;
+    this.latch |= newly;
     if (newly & IN_U) this.menuPressed.add('up');
     if (newly & IN_D) this.menuPressed.add('down');
     if (newly & IN_L) this.menuPressed.add('left');
@@ -215,7 +217,8 @@ export class Input {
   poll(): number {
     this.pollPad();
     this.prev = this.bits;
-    this.bits = this.keyBits | this.touchBits | this.padBits;
+    this.bits = this.keyBits | this.touchBits | this.padBits | this.latch;
+    this.latch = 0;
     return this.bits;
   }
   pressed(name: string) { return this.menuPressed.has(name); }

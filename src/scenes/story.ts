@@ -80,8 +80,9 @@ export class InterviewScene implements Scene {
     for (let row = 0; row < 6; row++) for (let col = 0; col < 4; col++) {
       const x = col * 84 - (row % 2) * 40, y = 20 + row * 22;
       const s = SPONSORS[(row + col) % SPONSORS.length];
-      fb.rect(x, y, 82, 20, (row + col) % 2 ? 4 : 7);
-      textC(fb, s.length > 13 ? s.slice(0, 13) : s, x + 41, y + 7, (row + col) % 2 ? 1 : 1, -1);
+      fb.rect(x, y, 82, 20, (row + col) % 2 ? 2 : 8);
+      fb.frame(x, y, 82, 20, 1);
+      textC(fb, s, x + 41, y + 7, (row + col) % 2 ? 3 : 9, -1);
     }
     // Bobby, deadpan, and the reporter's microphone
     blitScaled(fb, BOBBY_SPR.stand, 60, 54, 4);

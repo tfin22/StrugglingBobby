@@ -94,3 +94,16 @@ describe('the three tools', () => {
     expect(w.tiles[8 * 16 + 10]).toBe(0);
   });
 });
+
+describe('1989 controls: fire + direction picks the tool', () => {
+  it('up jumps, fire+up kicks, fire+down drops a pie, fire+side flicks the scarf', async () => {
+    const { IN_U, IN_D, IN_J } = await import('../src/game/consts');
+    const w = testWorld(ROOM, [6, 9]); w.classic = true;
+    run(w, IN_U, 1); expect(w.p.st).toBe('jump');
+    runUntil(w, 0, (x) => x.p.st === 'stand');
+    const b = w.balls; run(w, IN_J | IN_U, 1); run(w, 0, 12); expect(w.balls).toBe(b - 1);
+    const p = w.pies; run(w, IN_J | IN_D, 1); run(w, 0, 12); expect(w.pies).toBe(p - 1);
+    run(w, IN_L, 10); run(w, 0, 2);
+    run(w, IN_J | IN_R, 1); expect(w.p.st).toBe('scarf');
+  });
+});
