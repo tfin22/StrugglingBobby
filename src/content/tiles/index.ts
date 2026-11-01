@@ -1,5 +1,5 @@
 import { Bitmap, parseGrid } from '../../engine/framebuffer';
-import { GENERIC } from './generic';
+import { GENERIC, GENERIC_ALT } from './generic';
 import { ZONE_TILES } from './zones';
 
 export const TILE = 16;
@@ -42,6 +42,13 @@ export const ZONE_FLAGS = [0, 1, 2, 3].map(tileFlags);
 export function tileArtSource(zone: number, ch: string): string[] | null {
   if (ch === ' ') return null;
   return ZONE_TILES[zone][ch] ?? GENERIC[ch] ?? null;
+}
+
+// Alternate art for odd columns (null where a tile has no variant).
+const altCache: (Bitmap | null)[][] = [];
+export function tileArtAlt(zone: number): (Bitmap | null)[] {
+  if (!altCache[zone]) altCache[zone] = [...TILE_CHARS].map((ch) => (ZONE_TILES[zone][ch] || !GENERIC_ALT[ch] ? null : parseGrid(norm(GENERIC_ALT[ch]), PIX)));
+  return altCache[zone];
 }
 
 const cache: (Bitmap | null)[][] = [];

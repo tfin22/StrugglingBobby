@@ -3,7 +3,7 @@ import { text, textC, textW, wrap } from '../engine/text';
 import { World, Ent } from '../game/types';
 import { PLAY_X, PLAY_Y, PW, PH, TS, COLS, ROWS } from '../game/consts';
 import { T } from '../game/tuning';
-import { tileArt, ZONE_FLAGS, F_CRUMBLE, tileId, TILE_CHARS } from '../content/tiles';
+import { tileArt, tileArtAlt, ZONE_FLAGS, F_CRUMBLE, tileId, TILE_CHARS } from '../content/tiles';
 // Tiles with see-through pixels get the screen's back wall behind them.
 const TRANSP = [...TILE_CHARS].map((c) => '-^hXZGabf'.includes(c));
 import { BOBBY_SPR, THING_SPR, CREATURE_SPR, PEOPLE } from '../content/sprites';
@@ -24,8 +24,16 @@ function blit(fb: FB, b: Bitmap | undefined, x: number, y: number, flip = false,
 function rect(fb: FB, x: number, y: number, w: number, h: number, c: number) { fb.rect(PLAY_X + ox + x, PLAY_Y + oy + y, w, h, c); }
 function px(fb: FB, x: number, y: number, c: number) { fb.pset(PLAY_X + ox + x, PLAY_Y + oy + y, c); }
 
+// Darken a back-wall pixel (zone back wall colours) to the deep shadow colour.
+const F_SOLIDISH = 1;
+function shade(fb: FB, x: number, y: number) {
+  if (x < fb.cx0 || x >= fb.cx1 || y < fb.cy0 || y >= fb.cy1) return;
+  const i = y * 320 + x, c = fb.pix[i];
+  if (c === 29 || c === 30) fb.pix[i] = c === 30 ? 29 : 16;
+}
+
 export function drawTiles(fb: FB, zone: number, tiles: Uint8Array, dx: number, dy: number, crumble?: Record<number, number>, tick = 0, back = ' ') {
-  const art = tileArt(zone);
+  const art = tileArt(zone), alt = tileArtAlt(zone);
   const bk = back !== ' ' ? art[tileId(back)] : null;
   for (let ty = 0; ty < ROWS; ty++) for (let tx = 0; tx < COLS; tx++) {
     const i = ty * COLS + tx, id = tiles[i];
@@ -33,8 +41,27 @@ export function drawTiles(fb: FB, zone: number, tiles: Uint8Array, dx: number, d
     if (!id) continue;
     let sx = 0;
     if (crumble && crumble[i] !== undefined && ZONE_FLAGS[zone][id] & F_CRUMBLE) sx = tick % 4 < 2 ? 1 : -1;
-    const a = art[id];
+    const a = (tx & 1 ? alt[id] : null) ?? art[id];
     if (a) { if (bk) fb.blit(a, PLAY_X + dx + tx * TS + sx, PLAY_Y + dy + ty * TS); else fb.blitOpaque(a, PLAY_X + dx + tx * TS + sx, PLAY_Y + dy + ty * TS); }
+  }
+  // Cast shadows: solid blocks darken the back wall below and to the right of
+  // them, so the foreground lifts off the background.
+  if (bk) {
+    const flags = ZONE_FLAGS[zone];
+    const solid = (x: number, y: number) => x >= 0 && y >= 0 && x < COLS && y < ROWS && (flags[tiles[y * COLS + x]] & F_SOLIDISH) !== 0;
+    for (let ty = 0; ty < ROWS; ty++) for (let tx = 0; tx < COLS; tx++) {
+      if (solid(tx, ty)) continue;
+      const up = solid(tx, ty - 1), left = solid(tx - 1, ty), diag = solid(tx - 1, ty - 1);
+      if (!up && !left && !diag) continue;
+      const x0 = PLAY_X + dx + tx * TS, y0 = PLAY_Y + dy + ty * TS;
+      for (let j = 0; j < 4; j++) for (let i = 0; i < TS; i++) {
+        const inTop = up && j < 4 && i >= j - 1, inLeft = left && i < 4 - Math.max(0, 0) && j < TS;
+        void inLeft;
+        if (!inTop && !(diag && i < 4 - j)) continue;
+        shade(fb, x0 + i, y0 + j);
+      }
+      if (left) for (let j = 0; j < TS; j++) for (let i = 0; i < 3; i++) if (i < 3 - (up || diag ? 0 : Math.max(0, 2 - j))) shade(fb, x0 + i, y0 + j);
+    }
   }
 }
 
