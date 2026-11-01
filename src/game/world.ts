@@ -375,7 +375,7 @@ function stepAir(w: World, inp: number) {
   }
   p.vy = Math.min(p.vy + T.gravity, T.maxFall);
   if (p.vy > 0) p.st = 'fall';
-  if (p.vx && !moveX(w, p.vx)) p.vx = 0;
+  if (p.vx) moveX(w, p.vx); // a committed jump keeps its direction, even after brushing a wall
   // vertical, pixel by pixel
   let rem = p.vy;
   const h = hitH(w);

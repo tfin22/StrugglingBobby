@@ -1,6 +1,7 @@
 import { newWorld, step } from '../src/game/world';
-import { tamBot } from '../src/game/bots';
-const w = newWorld({ zone: 0, seed: 1938, screen: 'z1s22', x: 4, y: 160 });
+import { BOTS } from '../src/game/bots';
+const tamBot = BOTS[process.env.BOT ?? 'tam'];
+const w = newWorld({ zone: Number(process.env.Z ?? 0), seed: 1938, screen: process.env.SCR ?? 'z1s22', x: 4, y: 160 });
 const mem: Record<string, number> = {};
 for (let f = 0; f < 6000; f++) {
   const i = tamBot(w, mem);

@@ -77,7 +77,113 @@ export const tamBot: Bot = (w, mem) => {
   return goTo(w, 24);
 };
 
-export const BOTS: Record<string, Bot> = { tam: tamBot };
+// The Manager of the Month: hold the safe corner by the door, kick each
+// manager twice; flick the dossier away first; kick the sulker as he storms.
+export const motmBot: Bot = (w, mem) => {
+  const p = w.p, m = boss(w);
+  if (!m) return IN_R;
+  if (p.st === 'kick' || p.st === 'scarf' || p.st === 'pie') return 0;
+  const round = (m.data!.round as number) ?? 1;
+  const bag = w.ents.find((e) => e.k === 'pickup' && e.type === 'kitbag');
+  if (m.st === 9) { if (bag && m.n > 30) return goTo(w, bag.x + 7, 2); return goTo(w, 30, 1.5); }
+  if (Math.abs(p.x - 30) > 4) return goTo(w, 30, 1.5);
+  if (p.facing !== 1) return IN_R;
+  // Dodge a tactics board on its way down at us
+  const board = w.ents.find((e) => e.k === 'board' && e.vx < 0 && e.x - p.x < 40 && e.x > p.x - 10);
+  if (board && board.y > p.y - 40) return IN_D;
+  const ballOut = w.ents.some((e) => e.k === 'ball');
+  if (round === 2 && m.data!.shield) {
+    if (m.x - p.x < 30 && !m.stun) return tap(w, mem, IN_S, 's');
+    return 0;
+  }
+  if (round === 3 && m.st !== 1) return 0;
+  if (!ballOut && w.balls > 0) return tap(w, mem, IN_K, 'k');
+  return 0;
+};
+
+// The Administrator: dodge the paperwork, flick his clipboard away, then
+// pie the vault door while he shuffles after it. Twice.
+export const adminBot: Bot = (w, mem) => {
+  const p = w.p, a = boss(w);
+  if (!a) return goTo(w, 232, 1) || IN_R;
+  if (p.st === 'kick' || p.st === 'scarf' || p.st === 'pie') return 0;
+  const vault = parts(w, 'vault')[0];
+  const ax = a.x + a.w / 2;
+  // 1. Paper falling on us? Step out of its column.
+  const paper = w.ents.find((e) => e.k === 'drop' && e.st <= 2 && Math.abs(e.x + 7 - p.x) < 16 && e.y < p.y);
+  if (paper) { const away = p.x < paper.x + 7 ? -1 : 1; const nx = p.x + away * 20; if (Math.abs(nx - ax) > 20 && nx > 10 && nx < 220) return away < 0 ? IN_L : IN_R; return away < 0 ? IN_R : IN_L; }
+  // 2. Creditor coming? Kick it.
+  const cred = w.ents.find((e) => e.k === 'enemy' && e.st !== 99 && Math.abs(e.x - p.x) < 120 && Math.abs(e.y + e.h - p.y) < 6);
+  if (cred && w.balls > 0 && !w.ents.some((e) => e.k === 'ball')) { const d = Math.sign(cred.x - p.x); if (p.facing !== d) return d > 0 ? IN_R : IN_L; return tap(w, mem, IN_K, 'k'); }
+  const pieLive = w.ents.some((e) => e.k === 'pie');
+  if (pieLive) {
+    // run from the pie, away from the administrator
+    const pie = w.ents.find((e) => e.k === 'pie')!;
+    const away = ax > pie.x ? -1 : 1;
+    if (Math.abs(p.x - (pie.x + 5)) < 50) return away < 0 ? IN_L : IN_R;
+    return 0;
+  }
+  if (a.data!.clip) {
+    // approach to scarf range, from whichever side we're on
+    const side = p.x < ax ? -1 : 1;
+    const want = ax + side * 26;
+    if (Math.abs(p.x - want) > 3 && Math.abs(p.x - ax) > 24) return p.x < want ? IN_R : IN_L;
+    const face = -side;
+    if (p.facing !== face) return face > 0 ? IN_R : IN_L;
+    if (Math.abs(p.x - ax) < 34 && Math.abs(p.x - ax) > 12) return tap(w, mem, IN_S, 's');
+    return side < 0 ? IN_L : IN_R; // too close: back off
+  }
+  // 3. Disarmed: pie the vault door, keeping clear of him
+  if (vault) {
+    const vx = vault.x + 16;
+    if (Math.abs(p.x - ax) < 22) return p.x < ax ? IN_L : IN_R;
+    if (Math.abs(p.x - vx) > 6) return p.x < vx ? IN_R : IN_L;
+    return tap(w, mem, IN_P, 'p');
+  }
+  return 0;
+};
+
+// Bring Yer Dinner Dougie: kick through the gap when the back line jumps
+// together, hop the clearances, scarf the handbrake, pie the bus in the open.
+export const dougieBot: Bot = (w, mem) => {
+  const p = w.p, d = boss(w);
+  if (p.st === 'kick' || p.st === 'scarf' || p.st === 'pie') return 0;
+  const clear = w.ents.find((e) => e.k === 'clear' && e.vx < 0 && e.x - p.x < 46 && e.x > p.x - 8);
+  if (clear && p.st !== 'jump' && p.st !== 'fall') return IN_J;
+  if (p.st === 'jump' || p.st === 'fall') return 0;
+  const pie = w.ents.find((e) => e.k === 'pie');
+  if (!d) {
+    if (pie || w.ents.some((e) => e.data?.role === 'grab')) return goTo(w, 24, 2);
+    return IN_R; // through the opened gate, after the Lada
+  }
+  const phase = d.data!.phase as number;
+  const bus = parts(w, 'bus')[0];
+  if (phase === 0) {
+    if (Math.abs(p.x - 40) > 3) return goTo(w, 40, 2);
+    if (p.facing !== 1) return IN_R;
+    const c = d.t % 130; // waveEvery
+    if (c === 130 - 4 && w.balls > 0) return tap(w, mem, IN_K, 'k');
+    return 0;
+  }
+  if (phase === 1) return goTo(w, 40, 2);
+  if (phase === 2) {
+    const brake = parts(w, 'brake')[0];
+    if (!brake) return 0;
+    const target = brake.x - 22;
+    if (Math.abs(p.x - target) > 2) return goTo(w, target, 1.5);
+    if (p.facing !== 1) return IN_R;
+    return tap(w, mem, IN_S, 's');
+  }
+  // phase 3: get clear while it rolls, then pie it once it stops
+  if (!d.data!.stopped) return goTo(w, 24, 2);
+  if (pie) return goTo(w, 24, 2);
+  const target = bus.x - 7;
+  if (Math.abs(p.x - target) > 2) return goTo(w, target, 1.5);
+  if (p.facing !== 1) return IN_R;
+  return tap(w, mem, IN_P, 'p');
+};
+
+export const BOTS: Record<string, Bot> = { tam: tamBot, motm: motmBot, admin: adminBot, dougie: dougieBot };
 export function botFor(bossType: string | undefined): Bot | null { return bossType ? BOTS[bossType] ?? null : null; }
 
 // Run a bot until the screen is left or the zone is done.

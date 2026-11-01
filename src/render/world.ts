@@ -140,7 +140,7 @@ function drawEnt(fb: FB, w: World, e: Ent, tick: number) {
       rect(fb, x + 1, y + 2, e.w - 2, e.h - 2, open ? K : DG);
       if (!open) for (let j = y + 4; j < y + e.h; j += 4) rect(fb, x + 1, j, e.w - 2, 1, GR);
       else for (let j = 0; j < 3; j++) px(fb, x + 8, y + 10 + j * 6 + (tick >> 3) % 6, GOLD);
-      textC(fb, e.text ?? 'OUT', PLAY_X + ox + x + 8, PLAY_Y + oy + y - 9, open ? GOLD : GR, K);
+      { const lbl = e.text ?? 'OUT'; const lx = Math.max(textW(lbl) / 2 + 2, Math.min(PW - textW(lbl) / 2 - 2, x + 8)); textC(fb, lbl, PLAY_X + ox + lx, PLAY_Y + oy + y - 9, open ? GOLD : GR, K); }
       return;
     }
     case 'pickup': {

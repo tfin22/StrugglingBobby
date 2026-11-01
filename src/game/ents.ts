@@ -81,7 +81,7 @@ function spawnTrap(w: World, d: EntDef): Ent | null {
     }
     case 'camera': {
       const trig = d.trig ?? (d.dir === -1 ? [d.x - 6, d.y, d.x - 1, d.y + 3] : [d.x + 1, d.y, d.x + 6, d.y + 3]);
-      return newEnt(w, 'cam', px + 1, py + 2, 14, 10, { ...base, dir: d.dir ?? 1, data: { tx0: trig[0], ty0: trig[1], tx1: trig[2], ty1: trig[3], doorX: d.x0 ?? -1, doorY: d.y + 3 } });
+      return newEnt(w, 'cam', px + 1, py + 2, 14, 10, { ...base, dir: d.dir ?? 1, data: { tx0: trig[0], ty0: trig[1], tx1: trig[2], ty1: trig[3], doorX: d.x0 ?? -1, doorY: d.y0 ?? 9 } });
     }
     case 'tripwire':
       return newEnt(w, 'trip', px, py + TS - 5, TS, 5, { ...base });

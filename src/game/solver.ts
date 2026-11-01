@@ -1,5 +1,5 @@
 // A route finder over the deterministic simulation. Breadth-first search of
-export let G_WEIGHT = 0.4;
+export let G_WEIGHT = 0.2;
 export function setGWeight(v: number) { G_WEIGHT = v; }
 const DEBUG = typeof process !== "undefined" && !!process.env?.SOLVE_DEBUG;
 // Bobby's "macro moves" (walk a bit, jump, climb, crawl, wait, use a tool),
@@ -8,7 +8,7 @@ import { World } from './types';
 import { step } from './world';
 import { IN_L, IN_R, IN_U, IN_D, IN_J, IN_K, IN_P, IN_S, TS, PW, PH } from './consts';
 import { ZONES } from '../content/zones';
-import { ZONE_FLAGS, F_SOLID, F_WEAK, F_LADDER, F_PLAT } from '../content/tiles';
+import { ZONE_FLAGS, F_SOLID, F_WEAK, F_LADDER, F_PLAT, tileId } from '../content/tiles';
 
 export interface Macro { name: string; frames: number[] }
 
@@ -17,6 +17,8 @@ const MACROS: Macro[] = [
   { name: 'R', frames: hold(IN_R, 8) },
   { name: 'L', frames: hold(IN_L, 8) },
   { name: 'R2', frames: hold(IN_R, 3) },
+  { name: 'RW', frames: hold(IN_R, 40) },
+  { name: 'LW', frames: hold(IN_L, 40) },
   { name: 'L2', frames: hold(IN_L, 3) },
   { name: 'JR', frames: [IN_J | IN_R, ...hold(IN_R, 3)] },
   { name: 'JL', frames: [IN_J | IN_L, ...hold(IN_L, 3)] },
@@ -33,8 +35,6 @@ const MACROS: Macro[] = [
   { name: 'PLs', frames: [IN_P, ...hold(0, 10), ...hold(IN_L, 30), ...hold(0, 66)] },
   { name: 'PRs', frames: [IN_P, ...hold(0, 10), ...hold(IN_R, 30), ...hold(0, 66)] },
   { name: 'S', frames: [IN_S, ...hold(0, 16)] },
-  { name: 'FR', frames: [IN_R, ...hold(0, 1)] }, // turn to face right
-  { name: 'FL', frames: [IN_L, ...hold(0, 1)] },
 ];
 
 function clone(w: World): World { return structuredClone(w); }
@@ -74,13 +74,17 @@ function timer(e: World['ents'][number]): number {
 
 function key(w: World, coarseEnts: boolean): string {
   const p = w.p;
-  let k = `${w.screen}|${Math.round(p.x / 2)}|${Math.round(p.y / 2)}|${p.st === 'climb' ? 'c' : p.crouched ? 'k' : 's'}|${p.facing}|${w.balls}|${w.pies}|${w.state}`;
+  let k = `${w.screen}|${Math.round(p.x / 3)}|${Math.round(p.y / 3)}|${p.st === 'climb' ? 'c' : p.crouched ? 'k' : 's'}|${p.facing}|${Math.min(w.balls, 2)}|${w.pies}|${w.state}`;
   for (const e of w.ents) {
     if (e.k === 'fx' || e.k === 'dartp' || e.k === 'pickup' && false) continue;
     const q = coarseEnts ? 16 : 8;
     k += `;${e.k[0]}${e.st}${Math.round(e.x / q)},${Math.round(e.y / q)}${e.hp ?? ''}${e.on ? 1 : 0}${e.n && e.k === 'bosspart' ? Math.floor(e.n / 20) : ''}`;
     k += '@' + timer(e);
   }
+  // The map changes too: blown walls, opened gates, fallen floors
+  let th = 0;
+  for (let i = 0; i < w.tiles.length; i++) th = (th * 31 + w.tiles[i]) | 0;
+  k += '|' + th;
   // Timed traps: include their phase in coarse steps
   k += '|' + Object.keys(w.crumble).join(',');
   return k;
@@ -90,7 +94,14 @@ export interface SolveResult { ok: boolean; inputs: number[]; world: World; node
 
 // Which tools are worth trying on this screen?
 function toolsUseful(w: World) {
-  const f = { K: false, P: false, S: false };
+  const f = { K: false, P: false, S: false, C: false };
+  // Crawling only matters where there's a one-tile-high gap
+  const fl = ZONE_FLAGS[w.zone];
+  for (let ty = 1; ty < 10; ty++) for (let tx = 0; tx < 16; tx++) {
+    const here = fl[w.tiles[ty * 16 + tx]], above = fl[w.tiles[(ty - 1) * 16 + tx]], below = fl[w.tiles[(ty + 1) * 16 + tx]];
+    if (!(here & F_SOLID) && above & F_SOLID && below & (F_SOLID | F_PLAT)) f.C = true;
+  }
+  if (w.ents.some((e) => e.k === 'dart' || e.k === 'crusher')) f.C = true;
   for (const e of w.ents) {
     if (e.k === 'enemy' || e.k === 'boss' || e.k === 'bosspart') { f.K = true; f.S = true; }
     if (e.k === 'boss' || e.k === 'bosspart') f.P = true;
@@ -98,6 +109,18 @@ function toolsUseful(w: World) {
   }
   for (const t of w.tiles) if (t === 2) f.P = true; // weak wall
   return f;
+}
+
+// Only kick at something in front, and only flick the scarf at something within reach.
+function kickTarget(w: World): boolean {
+  const p = w.p;
+  return w.ents.some((e) => (e.k === 'enemy' || e.k === 'boss' || e.k === 'bosspart' || e.k === 'drop') && !e.dead && e.st !== 99 &&
+    Math.sign(e.x + e.w / 2 - p.x) === p.facing && Math.abs(e.x + e.w / 2 - p.x) < 180 && p.y - 11 < e.y + e.h && p.y - 3 > e.y);
+}
+function scarfTarget(w: World): boolean {
+  const p = w.p;
+  return w.ents.some((e) => ['enemy', 'boss', 'bosspart', 'drop', 'switch', 'trip', 'cam', 'pie', 'inflatable'].includes(e.k) && !e.dead &&
+    Math.abs(e.x + e.w / 2 - p.x) < 60 && e.y < p.y && e.y + e.h > p.y - 30);
 }
 
 class Heap<T> {
@@ -128,11 +151,14 @@ export function solveUntil(start: World, goal: (w: World) => boolean, maxNodes =
     nodes++;
     if (typeof process !== "undefined" && process.env?.SOLVE_DEBUG) console.log("pop", n.w.screen, n.w.p.x.toFixed(1), n.w.p.y.toFixed(1), n.w.p.st, n.g, n.w.ents.map((e) => e.k + e.st + ":" + e.x.toFixed(0)).join(" "));
     for (const m of MACROS) {
-      if ((m.name === 'K' && (n.w.balls <= 0 || !useful.K)) || (m.name[0] === 'P' && (n.w.pies <= 0 || !useful.P)) || (m.name === 'S' && !useful.S)) continue;
+      if (m.name === 'K' && !kickTarget(n.w)) continue;
+      if (m.name === 'S' && !scarfTarget(n.w)) continue;
+      if ((m.name === 'K' && (n.w.balls <= 0 || !useful.K)) || (m.name[0] === 'P' && (n.w.pies <= 0 || !useful.P)) || (m.name === 'S' && !useful.S) || ((m.name === 'CR' || m.name === 'CL') && !useful.C)) continue;
       const w = clone(n.w);
       const out: number[] = [];
       if (!run(w, m.frames, out) || w.lives < lives) continue;
       const node: Node = { w, inputs: out, parent: n, g: n.g + out.length };
+      if (typeof process !== "undefined" && process.env?.SOLVE_K && m.name === "K" && n.w.p.x > 85) console.log("K at", n.w.p.x.toFixed(1), n.w.p.facing, "->", w.ents.filter((e) => e.k === "enemy").map((e) => e.st + ":" + e.x.toFixed(0)).join(","), w.state);
       if (goal(w)) {
         const inputs: number[] = [];
         for (let x: Node | null = node; x; x = x.parent) inputs.unshift(...x.inputs);
@@ -141,7 +167,9 @@ export function solveUntil(start: World, goal: (w: World) => boolean, maxNodes =
       const k = key(w, coarse);
       if (seen.has(k) || w.screen !== start.screen) continue;
       seen.add(k);
-      open.push(node.g * G_WEIGHT + h(w), node);
+      const pri = node.g * G_WEIGHT + h(w);
+      if (typeof process !== "undefined" && process.env?.SOLVE_K && m.name === "K" && n.w.p.x > 85) console.log("  pri", pri.toFixed(1), "g", node.g, "h", h(w).toFixed(1));
+      open.push(pri, node);
     }
   }
   return { ok: false, inputs: [], world: start, nodes };
@@ -160,10 +188,12 @@ export function solveScreen(w: World, maxNodes = 40000): SolveResult {
   const dist = new Array(COLS * ROWS).fill(1e4);
   const flags = ZONE_FLAGS[w.zone];
   const fl = (tx: number, ty: number) => (tx < 0 || ty < 0 || tx >= COLS || ty >= ROWS ? 0 : flags[w.tiles[ty * COLS + tx]]);
-  const open = (tx: number, ty: number) => tx >= 0 && ty >= 0 && tx < COLS && ty < ROWS && (!(fl(tx, ty) & F_SOLID) || !!(fl(tx, ty) & F_WEAK));
+  const GATE = tileId('G');
+  const isGate = (tx: number, ty: number) => w.tiles[ty * COLS + tx] === GATE;
+  const open = (tx: number, ty: number) => tx >= 0 && ty >= 0 && tx < COLS && ty < ROWS && (!(fl(tx, ty) & F_SOLID) || !!(fl(tx, ty) & F_WEAK) || isGate(tx, ty));
   const ladder = (tx: number, ty: number) => !!(fl(tx, ty) & F_LADDER);
   const stand = (tx: number, ty: number) => ty >= ROWS - 1 || ladder(tx, ty) || !!(fl(tx, ty + 1) & (F_SOLID | F_PLAT | F_LADDER));
-  const cost = (tx: number, ty: number) => (fl(tx, ty) & F_WEAK ? 6 : 1);
+  const cost = (tx: number, ty: number) => (fl(tx, ty) & F_WEAK || isGate(tx, ty) ? 6 : 1);
   const q: number[] = [];
   for (let ty = 0; ty < ROWS; ty++) for (let tx = 0; tx < COLS; tx++) {
     const edge = (dx > 0 && tx === COLS - 1) || (dx < 0 && tx === 0) || (dy > 0 && ty === ROWS - 1) || (dy < 0 && ty === 0 && ladder(tx, ty));
@@ -195,7 +225,14 @@ export function solveScreen(w: World, maxNodes = 40000): SolveResult {
     const tx = Math.max(0, Math.min(COLS - 1, Math.floor(p.x / TS))), ty = Math.max(0, Math.min(ROWS - 1, Math.floor((p.y - 8) / TS)));
     let d = (dx || dy) ? Math.min(dist[ty * COLS + tx], 60) * 16 : 0;
     // A weak wall still standing is worth knocking down
-    for (let i = 0; i < x.tiles.length; i++) if (flags[x.tiles[i]] & F_WEAK) { d += 40; }
+    for (let i = 0; i < x.tiles.length; i++) if (flags[x.tiles[i]] & F_WEAK || x.tiles[i] === GATE) { d += 40; }
+    // While a gate is shut, the way to its switch is the way forward
+    const sw = x.ents.find((e) => e.k === 'switch' && !e.on);
+    if (sw && x.tiles.includes(GATE)) d += Math.abs(p.x - (sw.x + 4)) * 1.5;
+    if (!next) {
+      const t = x.ents.find((e) => e.k === 'exit') ?? x.ents.find((e) => e.k === 'boss');
+      if (t) d += Math.abs(p.x - (t.x + t.w / 2)) + Math.abs(p.y - (t.y + t.h));
+    }
     const b = x.ents.find((e) => e.k === 'boss');
     if (b) d += (b.hp ?? 0) * 300 + (x.bossBeaten ? 0 : 200);
     return d;

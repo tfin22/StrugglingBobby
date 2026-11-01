@@ -5,6 +5,7 @@ export interface EntDef {
   name?: string;
   link?: string[];
   x0?: number; x1?: number; // patrol bounds in tiles
+  y0?: number;
   dir?: number;
   len?: number;           // tiles long (studs, gates)
   trig?: [number, number, number, number]; // trigger rect in tiles: x0,y0,x1,y1 inclusive

@@ -75,7 +75,7 @@ export class PlayScene implements Scene {
     // Find a safe spot: the zone start if this is the first screen, else the first floor from the left.
     const def = screenDef(id);
     let placed = false;
-    for (let tx = 1; tx < 15 && !placed; tx++) for (let ty = 1; ty < 11 && !placed; ty++) {
+    for (let tx = 1; tx < 15 && !placed; tx++) for (let ty = 10; ty >= 1 && !placed; ty--) {
       const here = def.map[ty - 1]?.[tx] ?? ' ', below = def.map[ty]?.[tx] ?? ' ';
       if (' :|odabe'.includes(here) && '#=%-gcfXZ'.includes(below)) { w.p.x = tx * TS + 8; w.p.y = ty * TS; placed = true; }
     }

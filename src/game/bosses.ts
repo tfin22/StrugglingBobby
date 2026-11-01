@@ -159,7 +159,7 @@ function updAdmin(w: World, e: Ent, play: boolean, pb: Box) {
     if (e.st === 0) {
       e.x += e.dir * B.speed;
       if (e.x < e.x0! || e.x + e.w > e.x1!) e.dir = -e.dir;
-      if (e.t % B.paperEvery === 0 && play) { e.st = 1; e.n = 34; paperPattern(w, d); sfx(w, 'rustle'); }
+      if ((e.t % B.paperEvery === 0 || e.t === 50) && play) { e.st = 1; e.n = 34; paperPattern(w, d); sfx(w, 'rustle'); }
       if (e.t % B.creditorEvery === 0 && play) sendCreditor(w);
     } else if (e.st === 1 && --e.n <= 0) e.st = 0;
   } else {
@@ -318,7 +318,9 @@ export function bossBall(w: World, e: Ent, ball: Ent): boolean {
       const round = e.data!.round as number;
       if (round === 2 && e.data!.shield && Math.sign(ball.vx) === -e.dir) { sfx(w, 'thud'); say(w, 'BLOCKED BY THE DOSSIER.', 40); return true; }
       if (round === 3 && e.st === 0) { sfx(w, 'thud'); say(w, "HE'S SULKING. HE ISNAE LISTENING.", 50); return true; }
-      e.hp!--; e.stun = 20; sfx(w, 'oof'); w.shake = 3;
+      if (e.stun) { sfx(w, 'thud'); say(w, "HE'S ON THE PHONE TO HIS AGENT.", 40); return true; }
+      e.hp!--; e.stun = 45; sfx(w, 'oof'); w.shake = 3;
+      if (round === 3) { e.st = 0; e.t = 1; }
       if (e.hp! <= 0) {
         if (round >= 3) defeat(w, e, 'THE MANAGER OF THE MONTH HAS LEFT BY MUTUAL CONSENT!');
         else {
@@ -382,7 +384,7 @@ export function bossPie(w: World, cx: number, cy: number, r: number) {
       if (b.data!.clip) { say(w, "THE PAPERWORK'S IN ORDER. NO EFFECT.", 70); continue; }
       v.hp!--; w.shake = 10; sfx(w, 'clang');
       if (v.hp! <= 0) { v.dead = true; defeat(w, b, 'THE STRONGROOM IS OPEN! THE ADMINISTRATOR HAS ENTERED ADMINISTRATION!'); }
-      else say(w, 'THE DOOR BUCKLES! ONCE MORE!', 70);
+      else { say(w, "THE DOOR BUCKLES! HE'S FOUND A SPARE CLIPBOARD!", 90); b.data!.clip = true; b.st = 1; b.n = 34; paperPattern(w, b.data!); }
     }
   }
   if (b?.type === 'dougie' && b.data!.phase === 3 && b.data!.stopped) {
