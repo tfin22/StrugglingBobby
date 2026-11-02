@@ -15,7 +15,7 @@ import { HOARDING_TEXT } from '../content/text/misc';
 
 const K = 1, DG = 2, GR = 3, WH = 4, GOLD = 7, GOLDD = 8, GOLDL = 9, RED = 10, REDD = 11, BRN = 12, BRND = 13, VIS = 14, BLUE = 15;
 
-export interface DrawOpts { debug?: boolean; tick: number; hideHud?: boolean }
+export interface DrawOpts { debug?: boolean; tick: number; hideHud?: boolean; bobX?: number; bobY?: number }
 
 let ox = 0, oy = 0; // current draw offset (screen shake / scroll)
 function blit(fb: FB, b: Bitmap | undefined, x: number, y: number, flip = false, remap = -1, flipV = false) {
@@ -82,7 +82,7 @@ export function drawWorld(fb: FB, w: World, o: DrawOpts) {
 
   // Back layer
   for (const e of w.ents) if (isBack(e)) drawEnt(fb, w, e, o.tick);
-  if (w.state !== 'dying') drawBobby(fb, w, o.tick);
+  if (w.state !== 'dying') drawBobby(fb, w, o.tick, o.bobX, o.bobY);
   for (const e of w.ents) if (!isBack(e)) drawEnt(fb, w, e, o.tick);
   if (w.state === 'dying') drawBobby(fb, w, o.tick);
   if (o.debug) drawDebug(fb, w);
@@ -95,10 +95,10 @@ function isBack(e: Ent) {
   return ['sign', 'exit', 'studs', 'dart', 'cam', 'switch', 'trip', 'pickup', 'npc', 'jet', 'bosspart', 'crusher'].includes(e.k) && e.data?.role !== 'def' && e.data?.role !== 'grab';
 }
 
-function drawBobby(fb: FB, w: World, tick: number) {
+function drawBobby(fb: FB, w: World, tick: number, bobX?: number, bobY?: number) {
   const p = w.p;
   const flip = p.facing < 0;
-  const x = Math.round(p.x - 8), y = Math.round(p.y - 24);
+  const x = Math.round((bobX ?? p.x) - 8), y = Math.round((bobY ?? p.y) - 24);
   let spr: Bitmap = BOBBY_SPR.stand;
   switch (p.st) {
     case 'walk': spr = [BOBBY_SPR.walk1, BOBBY_SPR.walk2, BOBBY_SPR.walk3, BOBBY_SPR.walk2][Math.floor(p.anim / 6) % 4]; break;

@@ -34,6 +34,8 @@ export interface Player {
   t: number;                   // action timer
   crouched: boolean;
   hairUp: number;
+  buf: number;      // jump buffer
+  coyote: number;   // grace frames after leaving a ledge
 }
 
 export interface Checkpoint {

@@ -4,11 +4,15 @@ export const T = {
   walkSpeed: 1.5,
   crawlSpeed: 0.75,
   climbSpeed: 1.25,
-  jumpVy: 3.6,          // take-off speed; fixed arc, committed direction
+  jumpVy: 4.1,          // take-off speed; fixed arc, committed direction
   jumpVx: 1.6,
   gravity: 0.24,
-  maxFall: 4,
-  lethalFall: 80,       // pixels from the peak of a fall; more than this kills
+  apexHang: 0.55,       // gravity is gentler at the top of a jump: a moment of hang time
+  apexBand: 0.9,
+  maxFall: 4.5,
+  lethalFall: 100,      // pixels from the peak of a fall; more than this kills
+  jumpBuffer: 7,        // frames a jump press is remembered before landing
+  coyote: 5,            // frames after stepping off a ledge when a jump still works
   hitW: 10, hitH: 22, crouchH: 10,
   ladderGrab: 6,        // how far from a ladder's centre Bobby can grab it
 

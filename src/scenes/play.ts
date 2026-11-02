@@ -65,6 +65,7 @@ export class PlayScene implements Scene {
     ], 52, 12);
   }
   dlIdx = 0; showLine = 0;
+  prevP: { x: number; y: number; screen: string; state: string } | null = null;
 
   enter(app: App) { app.keepAwake(true); this.lastMusic = ''; }
 
@@ -146,6 +147,7 @@ export class PlayScene implements Scene {
       app.go(new GameOverScene(app, this));
       return;
     }
+    this.prevP = { x: w.p.x, y: w.p.y, screen: w.screen, state: w.state };
     step(w, bits);
     for (const ev of w.events) {
       if (ev.e === 'sfx') audio.sfx(ev.a as string);
@@ -201,7 +203,11 @@ export class PlayScene implements Scene {
   draw(app: App, fb: FB) {
     const w = this.w;
     if (this.card > 0) { drawCard(fb, w.zone, app.tick, this.c.mode); return; }
-    drawWorld(fb, w, { debug: app.debug, tick: app.tick });
+    // Smooth Bobby between 50 Hz steps on faster screens (drawing only).
+    const pp = this.prevP;
+    const smooth = pp && pp.screen === w.screen && pp.state === 'play' && w.state === 'play' && Math.abs(pp.x - w.p.x) < 8 && Math.abs(pp.y - w.p.y) < 8;
+    const a = Math.min(1, app.alpha);
+    drawWorld(fb, w, { debug: app.debug, tick: app.tick, bobX: smooth ? pp!.x + (w.p.x - pp!.x) * a : w.p.x, bobY: smooth ? pp!.y + (w.p.y - pp!.y) * a : w.p.y });
     if (w.state === 'zoneDone') {
       box(fb, 60, 70, 200, 40);
       textC(fb, w.zone === 3 ? 'THE AULD CUP IS HOME!' : 'ZONE COMPLETE!', 160, 80, 9, 1);

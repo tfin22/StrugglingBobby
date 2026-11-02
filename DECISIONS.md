@@ -20,14 +20,18 @@ via web search (c64-wiki, textfiles.com review, breadbox64).
 
 ## Movement
 
-- **Jump**: fixed arc, about 27 px high and 48 px long (1.6 px/frame across,
-  3.6 px/frame up, gravity 0.24). That clears a two-tile gap and climbs a
-  one-tile step. Direction is committed at take-off; brushing a wall mid-jump
-  no longer kills the sideways motion, so a jump from right beside a step
-  still lands on it (found by the solver; it felt broken otherwise).
-- **Falls**: walking off a ledge of up to five tiles is safe; a fall of more
-  than 80 px from its highest point kills. Jumping off adds height, so jump
-  down at most three tiles.
+- **Jump** (raised after playtest round 1, "a real struggle to get across
+  things"): fixed arc, about 35 px high and 58 px long (4.1 px/frame up,
+  1.6 px/frame across, gravity 0.24, gentler near the top for a moment of hang
+  time). That clears a two-tile step and a three-tile gap. Direction is still
+  committed at take-off, true to Rick; brushing a wall mid-jump doesn't cancel
+  it.
+- **Forgiving jumps on a touchscreen**: a jump pressed up to 7 frames before
+  landing still happens (jump buffer), and one pressed up to 5 frames after
+  walking off a ledge still works (coyote time). Rick didn't have these; on a
+  phone without real buttons they matter more than purity.
+- **Falls**: walking off a ledge of up to six tiles is safe; a fall of more
+  than 100 px from its highest point kills.
 - **Crouch** hitbox is 10 px tall, so darts at standing height pass over and
   one-tile tunnels can be crawled.
 - **Ladders**: up or down to grab, step off sideways at a floor, drop off the
@@ -79,8 +83,10 @@ via web search (c64-wiki, textfiles.com review, breadbox64).
   show a hinge.
 - **The giant ball** rolls at 1.4 px/frame, just slower than Bobby's walk:
   keep moving and you outrun it, stop and it gets you. If it is rolling the
-  same way when Bobby leaves the screen, it follows him to the next one
-  (unless it would have fallen in a pit on the way).
+  same way when Bobby leaves the screen, it follows him to the next one,
+  unless there's a pit between it and the edge (playtest round 1: it used to
+  follow you off the drain screen even though it should have gone down the
+  drain).
 - **Seagulls** steal one pie, never a life. **Stewards** walk Bobby back to the
   previous screen; no life lost. Enemies never start within 56 px of where
   Bobby enters (tested on every screen).
@@ -139,9 +145,22 @@ way, which is how the route tests prove them beatable.
   the play area at five phone sizes including 844x390.
 - **CRT mode**: CSS scanlines and vignette over the canvas plus a small blurred
   copy blended on top for bloom. Costs almost nothing.
-- **Sound**: every sample is generated at startup as 8-bit data; four music
-  channels plus effects through a gentle low-pass. Music can be switched off
-  for effects only. All tunes are original.
+- **Sound**: every sample is generated in code as 8-bit data while the
+  loading picture draws, so the first tap doesn't stall. Four music channels
+  plus effects through a gentle low-pass, with a tracker-style echo on the
+  music. After playtest round 1 the tunes are longer (eight to thirteen
+  sections, with key changes and more drums), the crowd groans and roars are
+  built from many detuned "voices" through vowel shapes, and the whistle is a
+  pea whistle with the pea rattling. Music can be switched off for effects
+  only. All tunes are original.
+- **The d-pad** (playtest round 1: "only up down left right... a bit laggy"):
+  a round eight-way pad with the diagonals drawn on it. Eight 45-degree
+  sectors, a small dead centre, the sector under your thumb lights up, and a
+  tiny haptic tick when your thumb changes direction.
+- **Smooth drawing**: the simulation stays at 50 Hz (PAL), but phones draw at
+  60 Hz or more, so every sixth frame Bobby didn't move, which read as stutter.
+  Bobby's drawn position is now smoothed between simulation steps. Drawing
+  only; the game itself is unchanged and still replays exactly.
 - **PWA in a single file**: `dist/index.html` is self-contained and works
   opened straight from the phone's storage. The build also writes
   `manifest.webmanifest`, `sw.js` and two icons beside it; when the folder is

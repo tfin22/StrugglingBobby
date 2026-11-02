@@ -5,6 +5,7 @@ import { audio } from './audio/audio';
 const app = new App();
 app.go(new LoadingScene());
 (window as unknown as { __bs: App }).__bs = app; // debug hook for headless checks
+(window as unknown as { __audio: typeof audio }).__audio = audio;
 
 // Fixed 50 Hz simulation (PAL), decoupled from rendering.
 const STEP = 1000 / 50;
@@ -16,10 +17,13 @@ function frame(now: number) {
   while (acc >= STEP && n < 5) { app.step(); acc -= STEP; n++; }
   if (n === 5) acc = 0;
   audio.tick();
+  app.alpha = acc / STEP; // how far we are towards the next simulation step
   app.render();
   frames++;
   if (now - fpsT > 1000) { app.fps = (frames * 1000) / (now - fpsT); frames = 0; fpsT = now; }
   requestAnimationFrame(frame);
+// Synthesise the sounds while the loading picture draws.
+setTimeout(() => { try { audio.prepare(); } catch { /* no audio */ } }, 120);
 }
 requestAnimationFrame(frame);
 

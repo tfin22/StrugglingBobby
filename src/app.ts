@@ -33,6 +33,7 @@ export class App {
   settings: Settings;
   scene!: Scene;
   tick = 0;
+  alpha = 0;
   debug = false;
   fps = 50;
   wakeLock: { release(): Promise<void> } | null = null;
@@ -50,6 +51,7 @@ export class App {
     };
     this.input.onTouchUp = () => { audio.init(); this.fullscreen(); };
     this.input.onLayout = () => this.layout();
+    this.input.onDirTick = () => this.haptic('tick');
     if (matchMedia('(pointer: coarse)').matches) { this.input.showControls = true; this.input.usingTouch = true; }
     addEventListener('resize', () => this.layout());
     addEventListener('orientationchange', () => setTimeout(() => this.layout(), 200));
@@ -118,7 +120,7 @@ export class App {
 
   haptic(kind: string) {
     if (!this.settings.haptics || !navigator.vibrate) return;
-    const pat: Record<string, number | number[]> = { kick: 12, pie: 30, death: [70, 50, 140], rumble: [120, 40, 120, 40, 200], boom: 50, select: 8 };
+    const pat: Record<string, number | number[]> = { tick: 6, kick: 12, pie: 30, death: [70, 50, 140], rumble: [120, 40, 120, 40, 200], boom: 50, select: 8 };
     try { navigator.vibrate(pat[kind] ?? 10); } catch { /* */ }
   }
 

@@ -25,6 +25,8 @@ export class Input {
   layer: HTMLElement;
   onTouchUp: () => void = () => {};
   onLayout: () => void = () => {};
+  onDirTick: () => void = () => {};
+  wedge = -1;
   toFb: (cx: number, cy: number) => { x: number; y: number } = (x, y) => ({ x, y });
   padWasPressed: boolean[] = [];
   threeFinger = false;
@@ -69,10 +71,24 @@ export class Input {
     mk('pie', 'PIE', true);
     mk('scarf', 'SCARF', true);
     mk('pause', 'II', true);
-    // D-pad arrows
+    // An 8-way pad: eight wedges, arrows on the four main directions and
+    // smaller ones on the diagonals. The wedge under your thumb lights up.
     const dp = this.btns[0].el;
-    dp.innerHTML = '<div style="position:absolute;left:50%;top:6%;transform:translateX(-50%)">&#9650;</div><div style="position:absolute;left:50%;bottom:6%;transform:translateX(-50%)">&#9660;</div><div style="position:absolute;left:7%;top:50%;transform:translateY(-50%)">&#9664;</div><div style="position:absolute;right:7%;top:50%;transform:translateY(-50%)">&#9654;</div>';
-    dp.style.fontSize = '18px';
+    dp.classList.remove('dpad');
+    dp.style.border = 'none'; dp.style.background = 'none';
+    const P = (a: number, r: number) => `${(50 + r * Math.cos(a)).toFixed(2)} ${(50 + r * Math.sin(a)).toFixed(2)}`;
+    let svg = '<svg viewBox="0 0 100 100" width="100%" height="100%" style="overflow:visible">';
+    svg += '<circle cx="50" cy="50" r="49" fill="rgba(20,20,20,0.35)" stroke="rgba(255,204,0,0.55)" stroke-width="2"/>';
+    for (let k = 0; k < 8; k++) {
+      const a0 = ((k - 0.5) * Math.PI) / 4, a1 = ((k + 0.5) * Math.PI) / 4;
+      svg += `<path id="dpw${k}" d="M ${P(a0, 15)} L ${P(a0, 47)} A 47 47 0 0 1 ${P(a1, 47)} L ${P(a1, 15)} A 15 15 0 0 0 ${P(a0, 15)} Z" fill="rgba(255,204,0,0)" stroke="rgba(255,204,0,0.25)" stroke-width="1"/>`;
+      const a = (k * Math.PI) / 4, big = k % 2 === 0, r = big ? 36 : 34, sz = big ? 7 : 4.5;
+      const tip = P(a, r + sz), b1 = P(a + 0.5 * (big ? 0.42 : 0.3), r - sz * 0.2), b2 = P(a - 0.5 * (big ? 0.42 : 0.3), r - sz * 0.2);
+      svg += `<path d="M ${tip} L ${b1} L ${b2} Z" fill="rgba(255,220,80,${big ? 0.85 : 0.6})"/>`;
+    }
+    svg += '<circle cx="50" cy="50" r="12" fill="rgba(0,0,0,0.35)" stroke="rgba(255,204,0,0.35)" stroke-width="1"/></svg>';
+    dp.innerHTML = svg;
+    dp.style.borderRadius = '50%';
   }
 
   // Lay the controls out around the game; returns the box the game may use.
@@ -151,7 +167,7 @@ export class Input {
   }
 
   private computeTouch() {
-    let bits = 0;
+    let bits = 0, wedge = -1;
     const on = new Set<string>();
     for (const t of this.touches.values()) {
       const id = this.hit(t.x, t.y);
@@ -160,9 +176,12 @@ export class Input {
       if (id === 'dpad') {
         const b = this.btns[0];
         const dx = t.x - (b.x + b.w / 2), dy = t.y - (b.y + b.h / 2);
-        const dead = b.w * 0.12;
-        if (Math.abs(dx) > dead && Math.abs(dx) > Math.abs(dy) * 0.5) bits |= dx < 0 ? IN_L : IN_R;
-        if (Math.abs(dy) > dead && Math.abs(dy) > Math.abs(dx) * 0.5) bits |= dy < 0 ? IN_U : IN_D;
+        if (Math.hypot(dx, dy) > b.w * 0.1) {
+          // Eight 45-degree sectors: E, SE, S, SW, W, NW, N, NE
+          const k = ((Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) % 8) + 8) % 8;
+          bits |= [IN_R, IN_R | IN_D, IN_D, IN_L | IN_D, IN_L, IN_L | IN_U, IN_U, IN_R | IN_U][k];
+          wedge = k;
+        }
       } else if (id === 'jump') bits |= IN_J;
       else if (id === 'kick') bits |= IN_K;
       else if (id === 'pie') bits |= IN_P;
@@ -176,8 +195,14 @@ export class Input {
     if (newly & IN_R) this.menuPressed.add('right');
     if (newly & IN_J) this.menuPressed.add('ok');
     if (newly & (IN_K | IN_S)) this.menuPressed.add('back');
+    const dirs = (IN_L | IN_R | IN_U | IN_D);
+    if ((bits & dirs) !== (this.touchBits & dirs) && bits & dirs) this.onDirTick();
     this.touchBits = bits;
-    for (const b of this.btns) b.el.classList.toggle('on', on.has(b.id));
+    for (const b of this.btns) if (b.id !== 'dpad') b.el.classList.toggle('on', on.has(b.id));
+    if (wedge !== this.wedge) {
+      for (let k = 0; k < 8; k++) document.getElementById('dpw' + k)?.setAttribute('fill', k === wedge ? 'rgba(255,204,0,0.5)' : 'rgba(255,204,0,0)');
+      this.wedge = wedge;
+    }
   }
 
   private pollPad() {

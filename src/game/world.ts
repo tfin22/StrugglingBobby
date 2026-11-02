@@ -27,7 +27,7 @@ export function newWorld(o: NewWorldOpts): World {
     seed, rng: seed, frame: 0, mode: o.mode ?? '2026', classic: !!o.classic, zone: o.zone,
     screen, tiles: new Uint8Array(COLS * ROWS), prevTiles: null, scrollDir: [0, 0], scrollT: 0,
     state: 'play', stateT: 0,
-    p: { x, y, vx: 0, vy: 0, facing: z.start.facing ?? 1, st: 'stand', peak: y, anim: 0, t: 0, crouched: false, hairUp: 0 },
+    p: { x, y, vx: 0, vy: 0, facing: z.start.facing ?? 1, st: 'stand', peak: y, anim: 0, t: 0, crouched: false, hairUp: 0, buf: 0, coyote: 0 },
     ents: [], nextId: 1,
     score: o.score ?? 0, lives: o.lives ?? T.startLives, balls: o.balls ?? T.startBalls, pies: o.pies ?? T.startPies,
     nextLifeAt: 0,
@@ -137,7 +137,7 @@ function restart(w: World, cp: Checkpoint) {
   w.pursuit = cp.pursuit ? { ...cp.pursuit } : null;
   const p = w.p;
   p.x = cp.x; p.y = cp.y; p.facing = cp.facing; p.vx = 0; p.vy = 0; p.st = cp.crouched ? 'crouch' : 'stand';
-  p.crouched = cp.crouched; p.peak = cp.y; p.t = 0; p.hairUp = 0;
+  p.crouched = cp.crouched; p.peak = cp.y; p.t = 0; p.hairUp = 0; p.buf = 0; p.coyote = 0;
   loadScreen(w, cp.screen);
   w.cp = { ...cp, pursuit: cp.pursuit ? { ...cp.pursuit } : null };
   w.cpPending = false;
@@ -185,12 +185,20 @@ function stepScroll(w: World) {
   if (w.scrollT >= T.scrollFrames) { w.state = 'play'; w.prevTiles = null; }
 }
 
+// Would the ball reach the screen edge, or drop down a pit on the way?
+function clearRun(w: World, ball: Ent, dir: number): boolean {
+  const floor = Math.round(ball.y + ball.h);
+  const from = dir > 0 ? ball.x + ball.w / 2 : ball.x + ball.w / 2;
+  for (let x = from; dir > 0 ? x < PW : x > 0; x += dir * 4) if (!supportAt(w, x - 5, x + 5, floor)) return false;
+  return true;
+}
+
 function startScroll(w: World, dx: number, dy: number) {
   const n = neighbour(w.zone, w.screen, dx, dy);
   if (!n) return false;
   // A giant ball rolling the same way follows Bobby onto the next screen.
   const ball = w.ents.find((e) => e.k === 'gball' && e.st === 2 && !e.dead);
-  if (ball && dx !== 0 && ball.dir === dx) {
+  if (ball && dx !== 0 && ball.dir === dx && clearRun(w, ball, dx)) {
     const dist = dx > 0 ? PW - (ball.x + ball.w) : ball.x;
     w.pursuit = { type: ball.type!, dir: dx, delay: Math.max(6, Math.round(dist / (TRAP_TYPES[ball.type!].speed ?? T.giantBallSpeed))), y: 0 };
   } else w.pursuit = null;
@@ -255,6 +263,10 @@ function stepPlayer(w: World) {
   const inp = w.input, pressed = inp & ~w.prevInput;
   p.anim++;
   if (p.hairUp > 0) p.hairUp--;
+  // Remember a jump press for a few frames, so one just before landing counts
+  if (pressed & (w.classic ? IN_U : IN_J) && !(w.classic && inp & IN_J)) p.buf = T.jumpBuffer;
+  else if (p.buf > 0) p.buf--;
+  if (p.coyote > 0) p.coyote--;
 
   // Actions in progress
   if (p.st === 'kick' || p.st === 'scarf' || p.st === 'pie') { stepAction(w); return; }
@@ -264,7 +276,7 @@ function stepPlayer(w: World) {
 
   // ---- On the ground
   if (!grounded(w)) {
-    p.st = 'fall'; p.vy = 0; p.peak = p.y;
+    p.st = 'fall'; p.vy = 0; p.peak = p.y; p.coyote = T.coyote;
     p.vx = inp & IN_L ? -T.walkSpeed * 0.75 : inp & IN_R ? T.walkSpeed * 0.75 : 0;
     if (p.crouched && headroom(w, T.hitH)) p.crouched = false;
     return;
@@ -282,10 +294,10 @@ function stepPlayer(w: World) {
   }
 
   // 1989 controls: fire + direction picks the tool; up is jump.
-  let jump = !!(pressed & IN_J), kick = !!(pressed & IN_K), pie = !!(pressed & IN_P), scarf = !!(pressed & IN_S);
+  let jump = !!(pressed & IN_J) || p.buf > 0, kick = !!(pressed & IN_K), pie = !!(pressed & IN_P), scarf = !!(pressed & IN_S);
   if (w.classic) {
     const fireHeld = !!(inp & IN_J), firePressed = !!(pressed & IN_J);
-    jump = !!(pressed & IN_U) && !fireHeld;
+    jump = (!!(pressed & IN_U) || p.buf > 0) && !fireHeld;
     kick = pie = scarf = false;
     if (firePressed || (fireHeld && pressed & (IN_U | IN_D | IN_L | IN_R))) {
       if (U) kick = true; else if (D) pie = true; else scarf = true;
@@ -303,14 +315,7 @@ function stepPlayer(w: World) {
   if (scarf) { p.st = 'scarf'; p.t = 0; sfx(w, 'scarf'); return; }
   if (w.classic && inp & IN_J && (U || D)) return; // holding fire: the stick picks a tool, it doesn't walk
 
-  if (jump && (!p.crouched || headroom(w, T.hitH))) {
-    p.crouched = false;
-    p.st = 'jump'; p.vy = -T.jumpVy; p.peak = p.y; p.hairUp = 30;
-    p.vx = L ? -T.jumpVx : R ? T.jumpVx : 0;
-    if (L) p.facing = -1; else if (R) p.facing = 1;
-    sfx(w, 'jump');
-    return;
-  }
+  if (jump && (!p.crouched || headroom(w, T.hitH))) { startJump(w, L, R); return; }
 
   // Crouch / stand
   if (D && !w.classic) p.crouched = true;
@@ -366,14 +371,27 @@ export function scarfRect(w: World) {
 }
 
 
+function startJump(w: World, L: boolean, R: boolean) {
+  const p = w.p;
+  p.crouched = false;
+  p.st = 'jump'; p.vy = -T.jumpVy; p.peak = p.y; p.hairUp = 30; p.buf = 0; p.coyote = 0;
+  p.vx = L ? -T.jumpVx : R ? T.jumpVx : 0;
+  if (L) p.facing = -1; else if (R) p.facing = 1;
+  sfx(w, 'jump');
+}
+
 function stepAir(w: World, inp: number) {
   const p = w.p;
+  // Coyote time: just walked off a ledge? A jump still works for a moment.
+  if (p.coyote > 0 && p.st === 'fall' && p.buf > 0 && p.vy >= 0) {
+    startJump(w, !!(inp & IN_L), !!(inp & IN_R)); return;
+  }
   // Grab a ladder mid-air by pushing up
   if (inp & IN_U && !w.classic) {
     const lx = ladderNear(w, p.x, p.y - 8);
     if (lx !== null) { p.x = lx; p.st = 'climb'; p.vx = 0; p.vy = 0; return; }
   }
-  p.vy = Math.min(p.vy + T.gravity, T.maxFall);
+  p.vy = Math.min(p.vy + (Math.abs(p.vy) < T.apexBand ? T.gravity * T.apexHang : T.gravity), T.maxFall);
   if (p.vy > 0) p.st = 'fall';
   if (p.vx) moveX(w, p.vx); // a committed jump keeps its direction, even after brushing a wall
   // vertical, pixel by pixel

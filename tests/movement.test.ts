@@ -22,9 +22,9 @@ describe('movement', () => {
     // Push left mid-air: no steering
     for (let i = 0; i < 60 && w.p.st !== 'stand'; i++) { run(w, IN_L, 1); peak = Math.min(peak, w.p.y); }
     expect(w.p.y).toBe(y0);
-    expect(w.p.x - x0).toBeGreaterThan(40); // carried on rightwards
-    expect(y0 - peak).toBeGreaterThan(24);
-    expect(y0 - peak).toBeLessThan(32);
+    expect(w.p.x - x0).toBeGreaterThan(54); // carried on rightwards: clears a three-tile gap
+    expect(y0 - peak).toBeGreaterThan(32); // clears a two-tile step
+    expect(y0 - peak).toBeLessThan(44);
   });
 
   it('jumps straight up when standing still', () => {
