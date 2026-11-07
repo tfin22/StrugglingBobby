@@ -1,0 +1,10 @@
+import { newWorld, step } from '../src/game/world';
+import { IN_R, IN_L, IN_P, IN_U, IN_D } from '../src/game/consts';
+const w = newWorld({ zone: 0, seed: 1938, screen: 'z1s06', x: 8, y: 160 });
+const st = (b: number, n: number) => { for (let i = 0; i < n; i++) { step(w, b); } };
+w.p.crouched = true;
+st(IN_R | IN_D, 90); st(IN_R, 60);
+console.log('at wall', w.p.x, w.p.st, w.p.crouched);
+st(IN_P, 1); st(0, 12); st(IN_L, 50); st(0, 80);
+console.log('after blast', w.state, w.deathCause, w.tiles.filter((t) => t === 2).length);
+st(IN_R, 120); console.log('walk', w.p.x); st(IN_U, 300); console.log(w.screen, w.p.y, w.p.st, w.state);
